@@ -2,16 +2,26 @@
 // that emits events on request. Firefox unloads this page when it is idle;
 // the notifier keeps its state in storage.local, so clicks and digests work
 // after a wake.
-import { createNotifier } from "../src/index.ts";
+import { createNotifier, previewWebhook, webhookChannel } from "../src/index.ts";
 
 const store = browser.storage.local;
 const get = async (key, fallback) => (await store.get(key))[key] ?? fallback;
+
+// The webhook settings can change at any time, so read them on each send.
+const webhook = {
+  name: "webhook",
+  async send(message) {
+    const config = await get("demo:webhook", null);
+    if (config?.enabled) await webhookChannel(config).send(message);
+  },
+};
 
 // Make the notifier in the first turn of the script, so its click and alarm
 // listeners exist on every wake.
 const notifier = createNotifier({
   browser,
   storage: store,
+  channels: [webhook],
   fallbackUrl: "approvals.html",
   rules: { quietHours: null },
 });
@@ -58,6 +68,14 @@ const handlers = {
     await notifier.clear(`needs-approval:${taskId}`);
     return pending[taskId];
   },
+  "settings:get": async () => ({ rules: await notifier.getRules(), webhook: await get("demo:webhook", null) }),
+  async "settings:save"({ rules, webhook: config }) {
+    await notifier.setRules(rules);
+    if (config) previewWebhook(config);
+    await store.set({ "demo:webhook": config });
+    return { ok: true };
+  },
+  "settings:preview": ({ webhook: config }) => previewWebhook(config),
 };
 
 browser.runtime.onMessage.addListener((message) => {

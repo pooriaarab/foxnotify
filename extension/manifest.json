@@ -19,5 +19,9 @@
   "action": {
     "default_title": "foxnotify demo",
     "default_popup": "popup.html"
+  },
+  "options_ui": {
+    "page": "settings.html",
+    "open_in_tab": true
   }
 }
