@@ -102,3 +102,9 @@ event page sends each notice to that page with `runtime.sendMessage`.
 | P5 | The text is too long for one link message. | The text is cut at 1000 characters. | `tests/phone.test.ts` |
 | P6 | The page gets the message and never answers. | The channel stops after `timeoutMs` (default 5000) and throws. | `tests/phone.test.ts` |
 | P7 | Other messages of the extension reach `servePhoneLink`. | It ignores every message that is not a phone notice, and lets other listeners answer. | `tests/phone.test.ts` |
+
+## E2E on CI
+
+| ID | Failure | Wanted result |
+|---|---|---|
+| CI1 | A Linux runner has no desktop notification service, so Firefox shows no notice and the display checks fail, while the rules, clicks and webhook work | The E2E uses Firefox's own alert windows (`alerts.useSystemBackend: false`). On CI only, a display check that fails is logged as `SKIP (CI)` with the reason, and does not fail the run. Every other check stays a hard check |
