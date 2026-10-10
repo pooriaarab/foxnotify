@@ -48,3 +48,16 @@ tests commit before the code that makes them pass.
 | S1 | The stored state is corrupt, or comes from a newer foxnotify. | `parseState` returns an empty state. It does not throw. | `tests/decide.test.ts` |
 | S2 | The state grows with no limit: old keys, old send times, a long queue. | Old keys and send times are removed. The queue keeps the newest 50 notices and counts the ones it drops. | `tests/decide.test.ts` |
 | S3 | `decide` changes the state object that the caller gave it. | The caller's object stays the same. `decide` returns a new state. | `tests/decide.test.ts` |
+
+## Notifier (the event page)
+
+| # | Failure mode | Wanted behavior | Test |
+|---|---|---|---|
+| N1 | Two `notify()` calls at the same time lose a state update. | The calls run one after the other in the page. Each one counts for the rate limit. | `tests/notifier.test.ts` |
+| N2 | The flush alarm is lost when Firefox restarts. | On load, the notifier sets the alarm again from the stored flush time. A flush time in the past flushes at once. | `tests/notifier.test.ts` |
+| N3 | `notifications.create` throws. | The result lists the error. The state is saved, and the other channels still get the notice. | `tests/notifier.test.ts` |
+| N4 | A channel throws. | The result lists the error. The desktop notice and the other channels still go out. | `tests/notifier.test.ts` |
+| N5 | An approval is answered while its notice is on screen. | `clear(key)` closes the notice and removes a queued copy. | `tests/notifier.test.ts` |
+| N6 | Rules from the settings page are lost when the page unloads, or bad rules replace good ones. | `setRules` checks the rules and saves them. Each `notify` reads the saved rules. Bad rules throw `invalid-rules`, and the saved rules stay. | `tests/notifier.test.ts` |
+| N7 | The notice text shows more than the task title, such as page text that an agent puts in the event. | The text comes from a fixed sentence for each kind, plus the cleaned title. Other event fields never reach the text. | `tests/notifier.test.ts`, E2E |
+| N8 | `clear(key)` runs after `notify` decided to send and before the notice shows. | The notifier checks the key again after it shows the notice, and closes it. No notice stays on screen for an answered approval. | `tests/notifier.test.ts` |
