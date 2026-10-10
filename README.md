@@ -236,12 +236,21 @@ pnpm e2e
 ```
 
 `pnpm e2e` builds `extension/` with `--e2e`, which adds a test content script
-on `http://127.0.0.1/*`, and runs it in a real Firefox. The release build that
-AMO signs does not have that script. It writes `artifacts/e2e-<date>.json`.
-Add `--shots <dir>` for PNGs of the demo pages.
+on `http://127.0.0.1/*` and the test messages of `e2e/background.js`, and runs
+it in a real Firefox. The release build that AMO signs has neither;
+`pnpm check:amo` checks that. It writes `artifacts/e2e-<date>.json`.
+Add `--shots <dir>` for PNGs of the demo pages. On CI, the test uses
+Firefox's own alert windows, and a check of what Firefox shows that fails
+there logs `SKIP (CI)` instead of failing the run. The other checks still
+count.
+
+[docs/amo-data.md](docs/amo-data.md) lists what the add-on sends out of the
+browser, and why its manifest declares no AMO data type.
 
 To try it yourself, run `pnpm build:ext` and load `dist-ext/manifest.json`
-from `about:debugging`. The popup is a fake agent: start a task, then emit
+from `about:debugging`. Install from AMO:
+[addons.mozilla.org/firefox/addon/foxnotify](https://addons.mozilla.org/firefox/addon/foxnotify/)
+(pending AMO review; the link works after approval). The popup is a fake agent: start a task, then emit
 any event kind with any priority. The settings page sets quiet hours, limits
 and the webhook, and shows the webhook request before you turn it on. An
 approval notice opens the approvals page.

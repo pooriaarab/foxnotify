@@ -70,6 +70,9 @@ extension/        the demo extension that shows this repo working in Firefox
 scripts/build-ext.mjs  bundles extension/ into dist-ext/ with esbuild
 e2e/run.mjs       the Firefox E2E test; writes artifacts/e2e-<date>.json
 e2e/bridge.js     the test content script that only the --e2e build has
+e2e/background.js the test event page: extension/background.js plus test messages (--e2e only)
+scripts/amo-listing.mjs  the AMO listing check, metadata and submit helpers (from foxmate)
+extension/amo-metadata.json  the AMO listing copy
 ```
 
 ## Commands
@@ -95,7 +98,8 @@ the tests, then the code. Commit in that order.
 `pnpm ci:local`, publishes to npm with the `NPM_TOKEN` secret, then tags
 `v<version>` and creates a GitHub release.
 
-After the npm publish, it signs `dist-ext/` with AMO on the unlisted channel
-and attaches the `.xpi` to the GitHub release. It needs the secrets
-`AMO_JWT_ISSUER` and `AMO_JWT_SECRET`. Keep the `version` in
-`extension/manifest.json` equal to the one in `package.json`.
+After the npm publish, it submits `dist-ext/` to AMO as a listed add-on with
+the copy in `extension/amo-metadata.json`, and `scripts/amo-listing.mjs`
+sets the listing icon. A re-run skips a version that AMO already has as
+listed. It needs the secrets `AMO_JWT_ISSUER` and `AMO_JWT_SECRET`. Keep the
+`version` in `extension/manifest.json` equal to the one in `package.json`.
