@@ -87,3 +87,18 @@ tests commit before the code that makes them pass.
 | W6 | An error message shows the URL, which can hold an access token. | Error messages never hold the URL. | `tests/webhook.test.ts` |
 | W7 | A non-ASCII title goes into an HTTP header and the request fails. | Headers hold only fixed ASCII text. A title goes in the body. | `tests/webhook.test.ts` |
 | W8 | The request sends cookies or a referrer. | The request uses `credentials: "omit"` and no referrer. | `tests/webhook.test.ts` |
+
+## Phone link (foxsync)
+
+The foxsync link lives in a page that stays open, such as the sidebar. The
+event page sends each notice to that page with `runtime.sendMessage`.
+
+| # | Failure mode | Wanted behavior | Test |
+|---|---|---|---|
+| P1 | No page holds a phone link. | The phone channel throws "No page holds an open phone link." It does not wait forever. | `tests/phone.test.ts`, E2E |
+| P2 | The page holds a link that has closed. | The page answers that the link is closed, and the channel throws. | `tests/phone.test.ts` |
+| P3 | A content script or a web page sends a phone message. | `servePhoneLink` answers only messages from the extension's own pages. | `tests/phone.test.ts` |
+| P4 | `link.send` throws, for example because the link closes during the send. | The page answers with the error, and the channel throws. | `tests/phone.test.ts` |
+| P5 | The text is too long for one link message. | The text is cut at 1000 characters. | `tests/phone.test.ts` |
+| P6 | The page gets the message and never answers. | The channel stops after `timeoutMs` (default 5000) and throws. | `tests/phone.test.ts` |
+| P7 | Other messages of the extension reach `servePhoneLink`. | It ignores every message that is not a phone notice, and lets other listeners answer. | `tests/phone.test.ts` |
