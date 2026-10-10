@@ -8,10 +8,10 @@ tests commit before the code that makes them pass.
 
 | # | Failure mode | Wanted behavior | Test |
 |---|---|---|---|
-| E1 | An event has an unknown kind, an empty task id or an empty title. | `decide` throws `FoxnotifyError` with code `invalid-event`. Nothing goes in the state. | `tests/events.test.ts` |
+| E1 | An event has an unknown kind, an empty task id or an empty title. | `toNotice` throws `FoxnotifyError` with code `invalid-event`. | `tests/events.test.ts` |
 | E2 | A task title holds a secret: a token, a one-time code, a card number, an email address or a URL with a query. | `cleanTitle` puts `[hidden]` in its place. A URL keeps only its host. | `tests/events.test.ts` |
 | E3 | A title has line breaks, control characters or 500 characters. | The text becomes one line of at most 80 characters, with `…` at the cut. | `tests/events.test.ts` |
-| E4 | An event sets a priority that does not exist. | `decide` throws `invalid-event`. | `tests/events.test.ts` |
+| E4 | An event sets a priority that does not exist. | `toNotice` throws `invalid-event`. | `tests/events.test.ts` |
 | E5 | An event sets a key that is not a non-empty string. A stored state with such a key fails its check at the next load, and every queued notice and mute is lost. | `toNotice` throws `invalid-event`. | `tests/events.test.ts` |
 
 ## Rules
