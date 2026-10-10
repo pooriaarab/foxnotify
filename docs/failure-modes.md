@@ -74,3 +74,16 @@ tests commit before the code that makes them pass.
 | C6 | The stored click targets grow with no limit. | A click or a close removes the entry. The store keeps the newest 50. | `tests/clicks.test.ts` |
 | C7 | A digest holds one notice only. | It shows as that notice, with its own click target. | `tests/clicks.test.ts` |
 | C8 | A key notifies again while its old notice is still on screen. Firefox replaces the old notice and can send `onClosed` for it after the new target is saved. | The notifier ignores that one close, so a click on the new notice still routes. | `tests/clicks.test.ts` |
+
+## Webhook
+
+| # | Failure mode | Wanted behavior | Test |
+|---|---|---|---|
+| W1 | The webhook sends the task title when the user did not opt in. | The body has the kind, the priority, a fixed sentence and the time. The title goes in only with `includeTitle: true`. | `tests/webhook.test.ts`, E2E |
+| W2 | The preview shows other text than the request that goes out. | One function builds both. `previewWebhook` returns the exact method, headers and body. | `tests/webhook.test.ts`, E2E |
+| W3 | The URL is not `https:`, or holds a user name and password. | `webhookChannel` throws `invalid-webhook`. Plain `http:` works only for `localhost`, `127.0.0.1` and `[::1]`. | `tests/webhook.test.ts` |
+| W4 | The server never answers. | The request stops after `timeoutMs` (default 10000), and the channel throws. | `tests/webhook.test.ts` |
+| W5 | The server answers with an error status. | The channel throws with the status. It does not count as sent. | `tests/webhook.test.ts` |
+| W6 | An error message shows the URL, which can hold an access token. | Error messages never hold the URL. | `tests/webhook.test.ts` |
+| W7 | A non-ASCII title goes into an HTTP header and the request fails. | Headers hold only fixed ASCII text. A title goes in the body. | `tests/webhook.test.ts` |
+| W8 | The request sends cookies or a referrer. | The request uses `credentials: "omit"` and no referrer. | `tests/webhook.test.ts` |
