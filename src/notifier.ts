@@ -1,4 +1,4 @@
-import { type Notice, type NoticeEvent, type RulesInput, parseRules } from "./rules.js";
+import { type Notice, type NoticeEvent, type NoticeKind, type RulesInput, type Target, isRecord, parseRules } from "./rules.js";
 import { type Decision, type State, clear, decide, flushDue, mute, parseState, unmute } from "./state.js";
 import { digestText, noticeText } from "./text.js";
 
@@ -9,12 +9,23 @@ export interface NotifierBrowser {
   notifications: {
     create(id: string, options: { type: "basic"; title: string; message: string; iconUrl?: string }): Promise<string>;
     clear(id: string): Promise<boolean>;
+    onClicked: Listener<(id: string) => unknown>;
+    onClosed: Listener<(id: string) => unknown>;
   };
   alarms: {
     create(name: string, info: { when: number }): void;
     clear(name: string): Promise<boolean>;
     onAlarm: Listener<(alarm: { name: string }) => unknown>;
   };
+  tabs: {
+    get(id: number): Promise<{ id?: number; windowId?: number }>;
+    update(id: number, props: { active: boolean }): Promise<unknown>;
+    query(info: Record<string, never>): Promise<{ id?: number; windowId?: number; url?: string }[]>;
+    create(props: { url: string }): Promise<unknown>;
+  };
+  /** Missing on Android. Then a click makes the tab active only. */
+  windows?: { update(id: number, props: { focused: boolean }): Promise<unknown> };
+  runtime: { getURL(path: string): string };
 }
 
 /** A storage area such as `browser.storage.local`. */
@@ -49,7 +60,11 @@ export interface NotifierOptions {
   /** Show desktop notices. Default true. */
   desktop?: boolean;
   iconUrl?: string;
+  /** An extension page that a click opens when the notice has no target, for example a list of pending approvals. */
+  fallbackUrl?: string;
   now?: () => number;
+  /** Called after a click is routed. It gets no way to approve anything. */
+  onClick?: (info: { key: string; taskId: string; kind: NoticeKind | "digest" }) => void;
 }
 
 export interface Delivery {
@@ -62,22 +77,34 @@ export interface NotifyResult extends Delivery {
   notice: Notice;
 }
 
+interface ClickEntry {
+  key: string;
+  taskId: string;
+  kind: NoticeKind | "digest";
+  target?: Target;
+  at: number;
+}
+
 const STATE = "fnt:state";
 const RULES = "fnt:rules";
+const CLICKS = "fnt:clicks";
 const ALARM = "fnt:flush";
 const PREFIX = "fnt:";
+const CLICKS_MAX = 50;
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
 /**
  * Make the notifier in the background script. Call it in the first turn of
- * the script, so its listeners exist on every wake.
+ * the script, so its click and alarm listeners exist on every wake.
  */
 export function createNotifier(options: NotifierOptions) {
   const { browser, storage } = options;
   const now = options.now ?? Date.now;
   const channels = options.channels ?? [];
   let chain: Promise<unknown> = Promise.resolve();
+  /** Ids of notices that a new notice replaced. Their next onClosed is for the old notice. */
+  const replaced = new Set<string>();
   /** Run one state change at a time in this page. */
   const serial = <T>(fn: () => Promise<T>): Promise<T> => {
     const next = chain.then(fn, fn);
@@ -88,19 +115,35 @@ export function createNotifier(options: NotifierOptions) {
   const read = async <T>(key: string, fallback: T): Promise<T> => ((await storage.get(key))[key] as T | undefined) ?? fallback;
   const loadState = async () => parseState(await read<unknown>(STATE, null));
   const loadRulesInput = async () => read<RulesInput>(RULES, options.rules ?? {});
+  const loadClicks = async () => {
+    const value = await read<unknown>(CLICKS, {});
+    return (isRecord(value) ? value : {}) as Record<string, ClickEntry>;
+  };
+  const saveClicks = (clicks: Record<string, ClickEntry>) => {
+    const newest = Object.entries(clicks)
+      .toSorted((a, b) => a[1].at - b[1].at)
+      .slice(-CLICKS_MAX);
+    return storage.set({ [CLICKS]: Object.fromEntries(newest) });
+  };
 
   async function syncAlarm(state: State): Promise<void> {
     if (state.flushAt === null) await browser.alarms.clear(ALARM);
     else browser.alarms.create(ALARM, { when: state.flushAt });
   }
 
-  async function deliver(message: Message, id: string): Promise<Delivery> {
+  async function deliver(message: Message, id: string, entry: ClickEntry): Promise<Delivery> {
     const out: Delivery = { delivered: [], errors: [] };
     const jobs: [string, () => Promise<unknown>][] = [];
     if (options.desktop !== false) {
       jobs.push([
         "desktop",
         async () => {
+          await serial(async () => {
+            const clicks = await loadClicks();
+            // Firefox replaces a notice with the same id and may send onClosed for the old one.
+            if (id in clicks) replaced.add(id);
+            await saveClicks({ ...clicks, [id]: entry });
+          });
           await browser.notifications.create(id, { type: "basic", title: message.title, message: message.body, ...(options.iconUrl ? { iconUrl: options.iconUrl } : {}) });
         },
       ]);
@@ -117,13 +160,15 @@ export function createNotifier(options: NotifierOptions) {
 
   const single = (notice: Notice): Promise<Delivery> => {
     const { title, body } = noticeText(notice);
-    return deliver({ digest: false, notices: [notice], dropped: 0, title, body }, PREFIX + notice.key);
+    const entry: ClickEntry = { key: notice.key, taskId: notice.taskId, kind: notice.kind, at: now(), ...(notice.target ? { target: notice.target } : {}) };
+    return deliver({ digest: false, notices: [notice], dropped: 0, title, body }, PREFIX + notice.key, entry);
   };
 
   const digest = (notices: Notice[], dropped: number): Promise<Delivery> => {
     if (notices.length === 1 && dropped === 0) return single(notices[0]!);
     const { title, body } = digestText(notices, dropped);
-    return deliver({ digest: true, notices, dropped, title, body }, `${PREFIX}digest:${now()}`);
+    const at = now();
+    return deliver({ digest: true, notices, dropped, title, body }, `${PREFIX}digest:${at}`, { key: "digest", taskId: "", kind: "digest", at });
   };
 
   async function flushNow(): Promise<Delivery & { notices: Notice[] }> {
@@ -137,8 +182,57 @@ export function createNotifier(options: NotifierOptions) {
     return { notices: out.notices, ...delivery };
   }
 
-  // The listener returns its promise, so a caller can wait. Firefox ignores it.
-  browser.alarms.onAlarm.addListener((alarm) => (alarm.name === ALARM ? flushNow() : undefined));
+  async function focus(target: Target | undefined): Promise<"tab" | "url" | "none"> {
+    if (target?.tabId !== undefined) {
+      try {
+        const tab = await browser.tabs.get(target.tabId);
+        await browser.tabs.update(target.tabId, { active: true });
+        if (browser.windows && tab.windowId !== undefined) await browser.windows.update(tab.windowId, { focused: true });
+        return "tab";
+      } catch {
+        // The tab is gone. Fall back to the URL.
+      }
+    }
+    const url = target?.url ?? (options.fallbackUrl ? browser.runtime.getURL(options.fallbackUrl) : undefined);
+    if (!url) return "none";
+    const open = (await browser.tabs.query({})).find((t) => t.url === url && t.id !== undefined);
+    if (open) return focus({ tabId: open.id! }).then(() => "tab");
+    await browser.tabs.create({ url });
+    return "url";
+  }
+
+  /** Route a click on a notice. A click only focuses a tab or opens a page. */
+  async function click(id: string): Promise<"tab" | "url" | "none" | "ignored"> {
+    if (!id.startsWith(PREFIX)) return "ignored";
+    const entry = await serial(async () => {
+      const clicks = await loadClicks();
+      const found = clicks[id];
+      delete clicks[id];
+      if (found) await saveClicks(clicks);
+      return found;
+    });
+    if (!entry) return "ignored";
+    await browser.notifications.clear(id).catch(() => false);
+    const how = await focus(entry.target);
+    options.onClick?.({ key: entry.key, taskId: entry.taskId, kind: entry.kind });
+    return how;
+  }
+
+  // The listeners return their promise, so a caller can wait. Firefox ignores it.
+  browser.notifications.onClicked.addListener((id) => click(id));
+  browser.notifications.onClosed.addListener((id) => {
+    if (!id.startsWith(PREFIX)) return undefined;
+    if (replaced.delete(id)) return undefined;
+    return serial(async () => {
+      const clicks = await loadClicks();
+      if (!(id in clicks)) return;
+      delete clicks[id];
+      await saveClicks(clicks);
+    });
+  });
+  browser.alarms.onAlarm.addListener((alarm) => {
+    return alarm.name === ALARM ? flushNow() : undefined;
+  });
 
   /** On each load: flush a flush time that has passed, else set the alarm again. */
   const ready = flushNow().then(() => undefined);
@@ -185,6 +279,7 @@ export function createNotifier(options: NotifierOptions) {
     },
     getRules: loadRulesInput,
     state: (): Promise<State> => serial(loadState),
+    click,
   };
 }
 
