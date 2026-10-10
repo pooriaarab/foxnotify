@@ -76,6 +76,13 @@ const handlers = {
     return { ok: true };
   },
   "settings:preview": ({ webhook: config }) => previewWebhook(config),
+  // For the E2E test: it cannot click a system notice, so it calls the same
+  // click handler that notifications.onClicked calls.
+  "test:click": ({ id }) => notifier.click(id),
+  "test:shown": () => browser.notifications.getAll(),
+  "test:boots": () => get("demo:boots", []),
+  "test:active": () => browser.tabs.query({ active: true, lastFocusedWindow: true }).then((tabs) => tabs.map((t) => t.id)),
+  "test:focus": ({ tabId }) => browser.tabs.update(tabId, { active: true }),
 };
 
 browser.runtime.onMessage.addListener((message) => {
