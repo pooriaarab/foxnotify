@@ -27,3 +27,41 @@ export function cleanTitle(text: string): string {
   if (out.length > MAX_TITLE) out = `${out.slice(0, MAX_TITLE - 1)}…`;
   return out;
 }
+
+const LABELS: Record<string, string> = {
+  "needs-approval": "Approval needed",
+  "needs-sign-in": "Sign-in needed",
+  "task-done": "Task done",
+  "task-stuck": "Task stuck",
+  "task-cut-short": "Task cut short",
+  "schedule-missed": "Schedule missed",
+};
+
+const SENTENCES: Record<string, string> = {
+  "needs-approval": "an action waits for you. Click to review it.",
+  "needs-sign-in": "sign in to go on. Click to open the tab.",
+  "task-done": "done.",
+  "task-stuck": "the task cannot go on.",
+  "task-cut-short": "the task stopped before the end.",
+  "schedule-missed": "did not run at its time.",
+};
+
+/** The kind and reason as one text key, for example `task-cut-short`. */
+export const textKey = (notice: { kind: string; reason?: string }) =>
+  notice.kind === "task-stuck" && notice.reason === "cut-short" ? "task-cut-short" : notice.kind;
+
+/** The short label of a notice, such as "Approval needed". It never holds the title. */
+export const labelOf = (notice: { kind: string; reason?: string }) => LABELS[textKey(notice)] ?? "Update";
+
+/** The text of one notice: a fixed sentence for the kind, and the cleaned title. */
+export function noticeText(notice: { kind: string; reason?: string; title: string }): { title: string; body: string } {
+  return { title: labelOf(notice), body: `${notice.title}: ${SENTENCES[textKey(notice)] ?? ""}`.trim() };
+}
+
+/** The text of a digest: one line per notice, at most 5 lines. */
+export function digestText(notices: { kind: string; reason?: string; title: string }[], dropped = 0): { title: string; body: string } {
+  const lines = notices.slice(0, 5).map((n) => `${labelOf(n)}: ${n.title}`);
+  const more = notices.length - lines.length + dropped;
+  if (more > 0) lines.push(`and ${more} more.`);
+  return { title: `${notices.length + dropped} updates from your agent`, body: lines.join("\n") };
+}
