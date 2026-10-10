@@ -28,3 +28,4 @@ export {
   type NotifyResult,
   type StorageAreaLike,
 } from "./notifier.js";
+export { previewWebhook, webhookChannel, type WebhookOptions, type WebhookRequest } from "./webhook.js";
