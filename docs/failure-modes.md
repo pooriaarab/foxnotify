@@ -61,3 +61,16 @@ tests commit before the code that makes them pass.
 | N6 | Rules from the settings page are lost when the page unloads, or bad rules replace good ones. | `setRules` checks the rules and saves them. Each `notify` reads the saved rules. Bad rules throw `invalid-rules`, and the saved rules stay. | `tests/notifier.test.ts` |
 | N7 | The notice text shows more than the task title, such as page text that an agent puts in the event. | The text comes from a fixed sentence for each kind, plus the cleaned title. Other event fields never reach the text. | `tests/notifier.test.ts`, E2E |
 | N8 | `clear(key)` runs after `notify` decided to send and before the notice shows. | The notifier checks the key again after it shows the notice, and closes it. No notice stays on screen for an answered approval. | `tests/notifier.test.ts` |
+
+## Clicks
+
+| # | Failure mode | Wanted behavior | Test |
+|---|---|---|---|
+| C1 | Firefox unloads the event page after a notice and before the click. | The click target is in storage. The notifier of the next page load routes the click. | `tests/clicks.test.ts` |
+| C2 | The target tab is closed before the click. | The click opens the target URL, else the fallback page. A tab that already shows the URL gets the focus. It does not throw. | `tests/clicks.test.ts` |
+| C3 | The target tab is in a window behind another window. | The click makes the tab active and focuses its window. With no `windows` API (Android), it makes the tab active only. | `tests/clicks.test.ts`, E2E |
+| C4 | A click approves the action. | A click only focuses a tab or opens a page. foxnotify has no approve path. The approval waits on the page that the click opens. | E2E |
+| C5 | A click comes for a notification id that foxnotify did not make. | The notifier ignores it. | `tests/clicks.test.ts` |
+| C6 | The stored click targets grow with no limit. | A click or a close removes the entry. The store keeps the newest 50. | `tests/clicks.test.ts` |
+| C7 | A digest holds one notice only. | It shows as that notice, with its own click target. | `tests/clicks.test.ts` |
+| C8 | A key notifies again while its old notice is still on screen. Firefox replaces the old notice and can send `onClosed` for it after the new target is saved. | The notifier ignores that one close, so a click on the new notice still routes. | `tests/clicks.test.ts` |
