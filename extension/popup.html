@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>foxnotify demo</title><link rel="stylesheet" href="style.css"></head>
+<body>
+  <h1>Fake agent</h1>
+  <p class="note">Start a task, then make it ask for you. foxnotify decides how to tell you.</p>
+  <fieldset>
+    <label>Task title <input id="title" type="text" value="Book a table for Friday"></label>
+    <label>Task page <input id="url" type="url" value="https://example.com/"></label>
+    <button id="start">Start task</button>
+  </fieldset>
+  <h2>Tasks</h2>
+  <div id="tasks"><p class="note">No tasks yet.</p></div>
+  <h2>Last decision</h2>
+  <pre id="log">None yet.</pre>
+  <p><a href="settings.html" target="_blank">Settings</a> · <a href="approvals.html" target="_blank">Approvals</a></p>
+  <script src="popup.js"></script>
+</body>
+</html>
