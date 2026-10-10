@@ -12,18 +12,12 @@
       }
     }
   },
-  "permissions": ["storage"],
+  "permissions": ["storage", "alarms", "notifications"],
   "background": {
     "scripts": ["background.js"]
   },
   "action": {
     "default_title": "foxnotify demo",
     "default_popup": "popup.html"
-  },
-  "content_scripts": [
-    {
-      "matches": ["http://127.0.0.1/*"],
-      "js": ["content.js"]
-    }
-  ]
+  }
 }
