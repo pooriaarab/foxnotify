@@ -23,11 +23,9 @@ const notifier = createNotifier({
   storage: store,
   channels: [webhook],
   fallbackUrl: "approvals.html",
+  iconUrl: "icons/icon-96.png",
   rules: { quietHours: null },
 });
-
-// Count page loads, so you (and the E2E test) can see each unload and wake.
-get("demo:boots", []).then((boots) => store.set({ "demo:boots": [...boots, Date.now()].slice(-20) }));
 
 const SAMPLE = { "needs-approval": "Send the form on the shop page", "needs-sign-in": "Sign in to the shop" };
 
@@ -76,13 +74,6 @@ const handlers = {
     return { ok: true };
   },
   "settings:preview": ({ webhook: config }) => previewWebhook(config),
-  // For the E2E test: it cannot click a system notice, so it calls the same
-  // click handler that notifications.onClicked calls.
-  "test:click": ({ id }) => notifier.click(id),
-  "test:shown": () => browser.notifications.getAll(),
-  "test:boots": () => get("demo:boots", []),
-  "test:active": () => browser.tabs.query({ active: true, lastFocusedWindow: true }).then((tabs) => tabs.map((t) => t.id)),
-  "test:focus": ({ tabId }) => browser.tabs.update(tabId, { active: true }),
 };
 
 browser.runtime.onMessage.addListener((message) => {
@@ -93,3 +84,6 @@ browser.runtime.onMessage.addListener((message) => {
     (error) => ({ ok: false, error: error.message }),
   );
 });
+
+// The --e2e build adds its test messages to these (e2e/background.js).
+export { handlers, notifier };

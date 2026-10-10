@@ -103,6 +103,37 @@ event page sends each notice to that page with `runtime.sendMessage`.
 | P6 | The page gets the message and never answers. | The channel stops after `timeoutMs` (default 5000) and throws. | `tests/phone.test.ts` |
 | P7 | Other messages of the extension reach `servePhoneLink`. | It ignores every message that is not a phone notice, and lets other listeners answer. | `tests/phone.test.ts` |
 
+## Data collection declaration (`extension/manifest.json`)
+
+| ID | Failure | Wanted result | How we check |
+|---|---|---|---|
+| DC1 | The add-on starts to send user data, for example page text, an agent's planned action, or task titles from real agent goals, while the manifest still declares `"none"` | The same change adds the matching AMO data types (`websiteContent`, `websiteActivity`) to `data_collection_permissions`, and asks Firefox's consent before the first send when they are optional | Review of each change to `extension/`; `docs/amo-data.md` lists what the add-on sends today |
+| DC2 | The listing or the privacy policy says less than the add-on sends | `docs/amo-data.md`, the listing and the privacy policy name the same items | Review |
+
+## AMO release build and listed submission (`scripts/amo-listing.mjs`)
+
+`pnpm check:amo` reads `dist-ext/`, which is what `release.yml` signs. Each
+row is a way that the listed build or the submission can go wrong.
+
+| ID | Failure | Wanted result |
+|---|---|---|
+| AR1 | `dist-ext/` is missing, so the check reads nothing | The check stops and says to run `pnpm build:ext` |
+| AR2 | A content script in the release manifest matches `127.0.0.1`, `localhost` or `*.localhost` (a test bridge) | The check stops and names the pattern |
+| AR3 | A host permission for a local host exists only for tests | The check stops, unless `local_hosts` in the listing gives a reason for that exact pattern |
+| AR4 | A file named for tests (`e2e`, `fixture`, `test`, `spec`) is in `dist-ext/` | The check stops and names the file |
+| AR5 | `dist-ext/` came from `build-ext.mjs --e2e` | AR2 or AR4 stops it |
+| AR6 | The `local_hosts` reasons go to AMO as an unknown field | `metadata` leaves them out, as it does the privacy policy |
+| AR7 | A re-run submits a version that AMO already has as listed | `version-status` says `listed`, and the step skips web-ext sign and finishes the release |
+| AR8 | AMO has the version as unlisted | `version-status` stops and says to bump the version |
+| AR9 | The AMO version lookup fails (401, 500, network) | `version-status` stops; it never guesses `absent` |
+| AR10 | The add-on already exists on AMO, and the version lookup sends a parameter AMO refuses on a single version (400), so every release stops | `version-status` asks for `versions/v<version>/` with no query; an owner sees listed and unlisted versions there |
+| AR11 | The release event page keeps the test hooks (`test:click`, `test:shown` and the others), so any extension page can drive clicks | The hooks live in `e2e/background.js`, which only the `--e2e` build bundles. The release `dist-ext/background.js` has no `test:` handler |
+
+| ID | Failure | Wanted result |
+|---|---|---|
+| AR-U1 | A `local_hosts` reason for a host permission also clears a test content script on the same pattern | Each reason names its use (`host_permission`, `content_script`, `web_accessible_resource`, `externally_connectable`); a use without its own reason stops the check |
+| AR-U2 | `local_hosts` keeps a reason for a use that the release build does not have | The check stops and names the pattern and the use |
+
 ## E2E on CI
 
 | ID | Failure | Wanted result |

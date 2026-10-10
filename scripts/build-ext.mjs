@@ -19,14 +19,20 @@ if (manifest.version !== pkg.version) {
 rmSync("dist-ext", { recursive: true, force: true });
 const files = readdirSync("extension");
 await build({
-  entryPoints: [...files.filter((f) => f.endsWith(".js")).map((f) => `extension/${f}`), ...(values.e2e ? [{ in: "e2e/bridge.js", out: "e2e-bridge" }] : [])],
+  // The e2e build swaps the event page for e2e/background.js, which loads
+  // extension/background.js and adds the test messages.
+  entryPoints: [
+    ...files.filter((f) => f.endsWith(".js") && !(values.e2e && f === "background.js")).map((f) => `extension/${f}`),
+    ...(values.e2e ? [{ in: "e2e/bridge.js", out: "e2e-bridge" }, { in: "e2e/background.js", out: "background" }] : []),
+  ],
   outdir: "dist-ext",
   bundle: true,
   format: "iife",
   target: "firefox153",
   logLevel: "warning",
 });
-for (const file of files.filter((f) => !f.endsWith(".js"))) cpSync(`extension/${file}`, `dist-ext/${file}`, { recursive: true });
+// amo-metadata.json is the AMO listing, not a part of the add-on.
+for (const file of files.filter((f) => !f.endsWith(".js") && f !== "amo-metadata.json")) cpSync(`extension/${file}`, `dist-ext/${file}`, { recursive: true });
 // Only the test build has the bridge. It lets a 127.0.0.1 page drive the
 // demo, so it must never reach AMO.
 if (values.e2e) {

@@ -1,0 +1,28 @@
+{
+  "default_locale": "en-US",
+  "slug": "foxnotify",
+  "name": {
+    "en-US": "foxnotify — notices for browser agents"
+  },
+  "summary": {
+    "en-US": "Get a notice when a browser agent task needs you: an approval, a sign-in, a stuck task or a missed schedule. Quiet hours hold back the rest, low-priority notices come as one digest, and a click takes you to the right tab."
+  },
+  "description": {
+    "en-US": "foxnotify tells you when a browser agent task needs you. This add-on shows the foxnotify library working, with a sample agent in the toolbar popup, so developers can try the rules before they connect a real agent.\n\n**Who it is for:** developers who build AI agents that run in the browser, and people who want to see how agent notices can respect quiet hours.\n\n**What it does**\n\n- The sample agent starts a task in a tab. Then it can ask for an approval, ask you to sign in, finish, get stuck, stop before the end, or miss its schedule.\n- Each event gets a priority. Urgent notices come at once. Low-priority notices wait and come together as one digest.\n- Quiet hours hold back notices below the level that you choose, and show them when quiet hours end.\n- Repeats of the same event are dropped, and a rate limit stops a flood. You can mute one task.\n- A click on a notice makes the task tab active, or opens the approvals page. A notice never approves anything: you answer with Approve or Deny on that page.\n\n**What leaves the browser, and when**\n\n- Nothing, by default. Notices stay on this computer.\n- Webhook (off by default): if you type a webhook URL in the settings, for example a topic on your own ntfy server, the add-on sends each notice to that URL. The request holds the event kind, the priority, a fixed sentence such as \"A task waits for your approval.\" and the time. The task title goes in only if you tick \"Send the task title\". The settings page shows the exact request before you can turn the webhook on.\n- The add-on has no server and sends nothing to its authors.\n\n**Permissions**\n\n- Notifications: show the notices.\n- Alarms: show the digest, and the held notices when quiet hours end.\n- Storage: settings, the notice queue and the sample tasks stay in your browser.\n\nFirefox notices have no buttons, so a click is the only action on them. The source code is MIT licensed."
+  },
+  "categories": {
+    "firefox": [
+      "alerts-updates"
+    ]
+  },
+  "homepage": {
+    "en-US": "https://github.com/pooriaarab/foxnotify"
+  },
+  "support_url": {
+    "en-US": "https://github.com/pooriaarab/foxnotify/issues"
+  },
+  "version": {
+    "license": "MIT",
+    "approval_notes": "The uploaded source.zip is the git tree of this release. To build: install Node 24 and pnpm 11 (corepack enable), run `pnpm install --frozen-lockfile`, then `pnpm build:ext`. The output is dist-ext/. esbuild bundles extension/*.js with src/; the other files are copied unmodified. To try it: open the toolbar popup, start a sample task, then press Emit. No account is needed. The webhook is off until a URL is typed in the add-on preferences."
+  }
+}
