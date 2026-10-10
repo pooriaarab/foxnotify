@@ -15,3 +15,4 @@ export {
   type RulesInput,
   type Target,
 } from "./rules.js";
+export { clear, decide, emptyState, flushDue, mute, parseState, unmute, type Decision, type State } from "./state.js";
