@@ -7,26 +7,38 @@ const ask = async (type, data = {}) => {
   return reply.value;
 };
 
+// A letter avatar for the task. The hue comes from the name, so one task
+// keeps one color. style.setProperty is CSSOM, which the CSP allows.
+function siteIcon(site) {
+  const box = Object.assign(document.createElement("span"), { className: "site-icon", textContent: (site[0] ?? "?").toUpperCase() });
+  let hue = 0;
+  for (const c of site) hue = (hue * 31 + c.charCodeAt(0)) % 360;
+  box.style.setProperty("--hue", String(hue));
+  box.setAttribute("aria-hidden", "true");
+  return box;
+}
+const seen = new Set();
+const el = (tag, className, textContent) => Object.assign(document.createElement(tag), { className, textContent });
+
 function card(item) {
-  const div = document.createElement("div");
-  div.className = item.taskId === location.hash.slice(1) ? "approval focus" : "approval";
+  const div = el("div", "approval ask");
+  if (item.taskId === location.hash.slice(1)) div.classList.add("focus");
+  if (item.state !== "pending") div.classList.add("done");
+  // Only a new card animates in; a re-render keeps the others still.
+  if (!seen.has(item.taskId)) div.classList.add("ask-new");
+  seen.add(item.taskId);
   div.dataset.task = item.taskId;
-  const title = document.createElement("div");
-  title.className = "state";
-  title.textContent = item.title;
-  const action = document.createElement("div");
-  action.textContent = `The agent wants to: ${item.action}`;
-  const state = document.createElement("div");
-  state.className = "decision";
-  state.textContent = `State: ${item.state}`;
-  div.append(title, action, state);
+  const head = el("div", "ask-head");
+  head.append(siteIcon(item.title), el("div", "state site", item.title));
+  div.append(head, el("div", "text", `The agent wants to: ${item.action}`), el("div", "decision", `State: ${item.state}`));
   if (item.state === "pending") {
-    for (const decision of ["approve", "deny"]) {
-      const b = document.createElement("button");
-      b.textContent = decision === "approve" ? "Approve" : "Deny";
+    const answers = el("div", "answers");
+    for (const decision of ["deny", "approve"]) {
+      const b = el("button", decision === "approve" ? "primary" : "ghost", decision === "approve" ? "Approve" : "Deny");
       b.addEventListener("click", () => ask("approvals:answer", { taskId: item.taskId, decision }).then(render));
-      div.append(b);
+      answers.append(b);
     }
+    div.append(answers);
   }
   return div;
 }
