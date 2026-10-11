@@ -2,10 +2,10 @@
 <html lang="en">
 <head><meta charset="utf-8"><title>foxnotify settings</title><link rel="stylesheet" href="style.css"></head>
 <body>
-  <h1>foxnotify settings</h1>
+  <header><img class="mark" src="icons/icon-48.png" alt="" width="22" height="22"><h1>foxnotify settings</h1></header>
   <fieldset>
     <legend>Quiet hours</legend>
-    <label><input id="quiet" type="checkbox"> Hold back notices during these hours</label>
+    <label class="switch"><input id="quiet" type="checkbox"> Hold back notices during these hours</label>
     <div class="row">
       <label>From <input id="start" type="time" value="22:00"></label>
       <label>To <input id="end" type="time" value="07:00"></label>
@@ -25,16 +25,16 @@
     <label>URL (https:, or http: on localhost) <input id="url" type="url" placeholder="https://ntfy.example.org/my-agent"></label>
     <div class="row">
       <label>Format <select id="format"><option value="json">JSON</option><option value="ntfy">ntfy</option></select></label>
-      <label><input id="title" type="checkbox"> Send the task title</label>
+      <label class="switch"><input id="title" type="checkbox"> Send the task title</label>
     </div>
     <button id="preview">Show what will be sent</button>
     <pre id="request" hidden></pre>
-    <label><input id="enabled" type="checkbox" disabled> Send notices to this webhook</label>
+    <label class="switch"><input id="enabled" type="checkbox" disabled> Send notices to this webhook</label>
     <p class="note">Look at the request first. The box unlocks after you see it, and locks again when you change the webhook.</p>
   </fieldset>
   <h2>Muted tasks</h2>
-  <div id="muted"><p class="note">No muted tasks.</p></div>
-  <button id="save">Save</button> <span id="status" class="note"></span>
+  <div id="muted"><p class="note empty">No muted tasks.</p></div>
+  <button id="save" class="primary">Save</button> <span id="status" class="note"></span>
   <script src="settings.js"></script>
 </body>
 </html>
