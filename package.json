@@ -1,6 +1,6 @@
 {
   "name": "foxnotify",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Tell the user when a Firefox agent task needs them, on desktop and phone, with quiet hours.",
   "type": "module",
   "license": "MIT",
