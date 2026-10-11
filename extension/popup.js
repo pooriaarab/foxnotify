@@ -32,6 +32,7 @@ function taskCard(task, muted) {
   const priority = document.createElement("select");
   for (const p of ["", "low", "normal", "high", "urgent"]) priority.append(option(p, p || "default priority"));
   const emit = document.createElement("button");
+  emit.className = "small";
   emit.textContent = "Emit";
   emit.addEventListener("click", async () => {
     const [k, reason] = kind.value.split(":");
@@ -39,6 +40,7 @@ function taskCard(task, muted) {
     $("log").textContent = JSON.stringify({ decision: result.decision, delivered: result.delivered, errors: result.errors }, null, 1);
   });
   const mute = document.createElement("button");
+  mute.className = "small ghost";
   mute.textContent = muted ? "Unmute" : "Mute";
   mute.addEventListener("click", () => ask("agent:mute", { taskId: task.taskId, muted: !muted }).then(render));
   const row = document.createElement("div");
