@@ -76,6 +76,7 @@ async function load() {
         const name = document.createElement("span");
         name.textContent = tasks[taskId]?.title ?? taskId;
         const b = document.createElement("button");
+        b.className = "small";
         b.textContent = "Unmute";
         b.addEventListener("click", () => ask("agent:mute", { taskId, muted: false }).then(() => row.remove()));
         row.append(name, b);
