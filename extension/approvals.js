@@ -30,7 +30,9 @@ function card(item) {
   div.dataset.task = item.taskId;
   const head = el("div", "ask-head");
   head.append(siteIcon(item.title), el("div", "state site", item.title));
-  div.append(head, el("div", "text", `The agent wants to: ${item.action}`), el("div", "decision", `State: ${item.state}`));
+  // As in foxmate: one line of what happens. After an answer, one line in place of the buttons.
+  div.append(head, el("p", "text", `${item.action}.`));
+  if (item.state !== "pending") div.append(el("p", "decision", item.state === "approve" ? "Approved." : "Denied."));
   if (item.state === "pending") {
     const answers = el("div", "answers");
     for (const decision of ["deny", "approve"]) {
