@@ -135,8 +135,8 @@ try {
     return null;
   };
   const approvalsPage = await until("the approvals page opens", () => findPage("approvals.html#t2"));
-  const shownState = await until("the approval shows", () => approvalsPage.evaluate(() => document.querySelector('[data-task="t2"] .decision')?.textContent));
-  check("the approvals page shows the pending approval", "State: pending", shownState);
+  const shownState = await until("the approval shows", () => approvalsPage.evaluate(() => document.querySelector('[data-task="t2"] .answers .primary')?.textContent));
+  check("the approvals page shows the pending approval", "Approve", shownState);
   replies["approvals:list"] = await send("approvals:list");
   check("the click did not approve", "pending", replies["approvals:list"].t2.state);
   await approvalsPage.close();
