@@ -135,8 +135,13 @@ pre[hidden] { display: none; }
 
 /* Approvals */
 #list { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-.approval .decision { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.approval .decision { margin-top: 12px; font-weight: 550; }
 .approval.focus { border-color: var(--accent); }
 .approval.done { background: transparent; border-color: var(--line); }
 .approval.done .site-icon { opacity: 0.6; }
 .empty { padding: 12px 14px; border: 1px dashed var(--line-strong); border-radius: 14px; }
+
+/* The cog in the header opens the settings, as in foxmate. */
+header .icon-button { display: grid; place-items: center; width: 34px; height: 34px; margin-left: auto; border-radius: 50%; color: var(--muted); transition: color var(--fast) var(--ease-out); }
+header .icon-button:hover { color: var(--text); }
+header .icon-button svg { width: 19px; height: 19px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
