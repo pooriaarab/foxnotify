@@ -1,6 +1,6 @@
 {
   "name": "foxnotify",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Firefox AI agent notifications with quiet hours, digests, approval click routing, ntfy webhooks and an optional foxsync phone bridge.",
   "type": "module",
   "license": "MIT",
