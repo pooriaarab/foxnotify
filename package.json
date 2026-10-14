@@ -1,7 +1,7 @@
 {
   "name": "foxnotify",
   "version": "0.1.2",
-  "description": "Tell the user when a Firefox agent task needs them, on desktop and phone, with quiet hours.",
+  "description": "Firefox AI agent notifications with quiet hours, digests, approval click routing, ntfy webhooks and an optional foxsync phone bridge.",
   "type": "module",
   "license": "MIT",
   "author": "Pooria Arab",
@@ -50,5 +50,21 @@
     "create-foxkit": "^0.1.0",
     "esbuild": "^0.28.2",
     "web-ext": "^10.7.0"
-  }
+  },
+  "keywords": [
+    "firefox",
+    "webextension",
+    "ai-agent",
+    "notifications",
+    "quiet-hours",
+    "notification-digest",
+    "approval-alerts",
+    "ntfy",
+    "webhooks",
+    "foxsync",
+    "desktop-notifications",
+    "typescript",
+    "rate-limiting",
+    "deduplication"
+  ]
 }
