@@ -1,169 +1,137 @@
 # foxnotify
 
-Tell the user when a Firefox agent task needs them, on desktop and phone, with quiet hours.
+[![npm version](https://img.shields.io/npm/v/foxnotify)](https://www.npmjs.com/package/foxnotify)
+[![Downloads/month](https://img.shields.io/npm/dm/foxnotify)](https://www.npmjs.com/package/foxnotify)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](https://opensource.org/license/mit)
 
-An agent that runs in your browser stops when it needs you: to approve an
-action, to sign in, or because it is stuck. foxnotify turns those moments into
-notices. It decides what to show now, what to hold for quiet hours, and what
-to put in a digest. A click on a desktop notice takes you to the right tab or
-page. A notice can also go to your phone, through a webhook (for example your
-own ntfy server) or through the [foxsync](https://github.com/pooriaarab/foxsync)
-encrypted link.
+[Quickstart](#decide-your-first-notice) · [API reference](#runtime-surfaces) · [Channel coverage](#coverage) · [FAQ](#faq)
 
-foxnotify is a library. It has no CLI and no MCP server. The repo also has a
-demo extension with a fake agent and a settings page.
+foxnotify is an open-source notification library for Firefox agent developers who need approval alerts, quiet hours, and digests.
+It routes notices to the desktop, a webhook, or a caller-supplied phone link.
+Desktop clicks focus a task tab or open a page where the user can review the action.
 
 ## Install
 
 ```bash
-npm i foxnotify
+npm install foxnotify
 ```
 
-foxnotify needs Firefox 153 or later. The rules part also runs in Node 24 or
-later.
+The demo extension targets Firefox 153 or later.
+Pure rule functions also run in Node.js 24 or later.
+TypeScript declarations are included; there are no required runtime dependencies.
+foxsync is an optional peer dependency for callers who provide a phone link.
 
-## Example
+## Decide your first notice
 
-The rules are plain functions, so this runs in Node as written:
+Save this as `example.mjs`, then run `node example.mjs`.
+This example checks rules; it does not show a desktop notification.
+No API keys, environment variables, or `.env` file are needed.
 
 ```js
 import { decide, emptyState, parseRules } from "foxnotify";
 
 const rules = parseRules({ quietHours: { start: "22:00", end: "07:00" } });
-const night = new Date(2026, 9, 9, 23, 30).getTime();
-
-const done = decide(emptyState(), { kind: "task-done", taskId: "t1", title: "Book a table" }, rules, night);
-console.log(done.decision); // { action: 'hold', reason: 'quiet-hours' }
-
-const ask = { kind: "needs-approval", taskId: "t1", title: "Send the form", priority: "urgent" };
-const urgent = decide(done.state, ask, rules, night);
-console.log(urgent.decision); // { action: 'send' }
+const night = new Date(2026, 9, 14, 23, 30).getTime();
+const done = decide(emptyState(), {
+  kind: "task-done", taskId: "t1", title: "Book a table",
+}, rules, night);
+console.log(done.decision);
+const ask = decide(done.state, {
+  kind: "needs-approval", taskId: "t1", title: "Send the form", priority: "urgent",
+}, rules, night);
+console.log(ask.decision);
 ```
 
-In an extension, `createNotifier` runs the same rules in the background
-script. It saves its state in `storage.local` and shows the notices:
+Success prints `{ action: 'hold', reason: 'quiet-hours' }`, then `{ action: 'send' }`.
+For desktop delivery, initialize this in your extension background script:
 
 ```js
-import { createNotifier, webhookChannel } from "foxnotify";
+import { createNotifier } from "foxnotify";
 
-// Call this in the first turn of the background script, so the click and
-// alarm listeners exist on every wake.
 const notifier = createNotifier({
   browser,
   storage: browser.storage.local,
-  rules: { quietHours: { start: "22:00", end: "07:00" } },
-  channels: [webhookChannel({ url: "https://ntfy.example.org/my-agent" })],
-  fallbackUrl: "approvals.html",
 });
-
-notifier.notify({
-  kind: "needs-approval",
-  taskId: "t42",
-  title: "Pay the electricity bill",
-  target: { url: browser.runtime.getURL("approvals.html#t42") },
+await notifier.ready;
+const result = await notifier.notify({
+  kind: "needs-approval", taskId: "t42", title: "Send the form",
 });
+console.log(result.delivered, result.errors);
 ```
 
-The manifest needs the `notifications`, `alarms` and `storage` permissions.
-
-## Use cases
-
-| Who | What they build | How foxnotify helps |
-|---|---|---|
-| A developer of a browser agent such as [foxmate](https://github.com/pooriaarab/foxmate) | An agent that asks before it sends a form | `needs-approval` shows a notice. A click opens the page with Approve and Deny, so the notice never approves anything. |
-| A user who leaves long tasks running | A morning summary instead of ten pop-ups | Low-priority notices, such as "task done", go into one digest. Quiet hours hold the rest until morning. |
-| A developer of a password or login helper such as [foxpass](https://github.com/pooriaarab/foxpass) | A pause that waits for the user to sign in | `needs-sign-in` shows a notice. A click makes the task tab active and focuses its window. |
-| A home-lab owner with a Firefox that runs scheduled jobs | Alerts on the phone when a job fails or misses its time | `task-stuck` and `schedule-missed` go to a self-hosted ntfy topic. By default the webhook gets no task title. |
-| An extension author with any background work | Rate-limited, de-duplicated notices | A loop that reports the same failure 50 times shows one notice. Other events over the rate limit go to the digest. |
-| A QA engineer | A test run that waits for a person | The test emits `needs-approval` with priority `urgent`, so it comes through quiet hours. |
-| A family member who helps a parent with an agent | Approval requests on their own phone | The foxsync link carries the notice, encrypted, to the paired phone. |
+Declare `notifications`, `alarms`, and `storage` permissions in the extension manifest.
+Initialize listeners on each background-page load.
+Success shows an approval notice and includes `desktop` in `result.delivered`.
 
 ## How it works
 
-```mermaid
-flowchart LR
-  agent[Agent task] -->|"notify(event)"| N
-  subgraph BG["Event page (background script)"]
-    N[createNotifier] --> D["decide(): send, digest, hold or drop"]
-    D <--> S[("storage.local<br/>state, rules, click targets")]
-    D -->|send| out[Deliver]
-    A["alarm fnt:flush"] --> F["flushDue(): digest and held notices"] --> out
-  end
-  out --> desk[browser.notifications]
-  out --> hook["webhookChannel<br/>redacted summary"]
-  out --> phone["phoneChannel"] -->|runtime message| side["Sidebar or tab<br/>servePhoneLink"] -->|"foxsync note"| mobile([Phone])
-  hook --> ntfy([Your ntfy server])
-  desk -->|click| route["Focus the tab and window,<br/>or open the approvals page"]
+```text
+Agent event -> validate + clean title -> rules -> send / hold / digest / drop
+                                               -> persist state + alarm
+Send or flush -> desktop | webhook | phone bridge
+Desktop click -> focus tab or open review page
 ```
 
-Each event gets one of four decisions:
+The notifier saves state, rules, and click targets in `browser.storage.local`.
+One alarm flushes notices when their time arrives.
+Independent channel results appear in `delivered` and `errors`.
 
-```mermaid
-stateDiagram-v2
-    [*] --> drop: muted task, or the same key within dedupeMinutes
-    [*] --> hold: quiet hours, and the priority is below the bypass
-    [*] --> digest: priority low, or the rate limit is full
-    [*] --> send: everything else (urgent skips the rate limit)
-    hold --> shown: quiet hours end (alarm)
-    digest --> shown: digestMinutes pass (alarm)
-    send --> shown
-    shown --> [*]
-```
+## Why it exists
 
-A click on a notice, also after Firefox unloads the event page:
+Browser agents need to request attention while users work in another tab.
+ntfy and Gotify deliver push messages through servers.
+foxnotify applies agent-specific event rules inside an extension, then calls delivery channels.
+It can use ntfy as a destination; it provides no push server.
 
-```mermaid
-sequenceDiagram
-    participant A as Agent
-    participant N as Notifier (event page)
-    participant S as storage.local
-    participant F as Firefox
-    A->>N: notify({ kind: "needs-sign-in", target: { tabId } })
-    N->>S: save state and the click target
-    N->>F: notifications.create("fnt:needs-sign-in:t1")
-    Note over N: The idle event page unloads after 30 s
-    F->>N: notifications.onClicked (a new page load)
-    N->>S: read the click target, then remove it
-    N->>F: tabs.update(tabId, { active: true }), windows.update(windowId, { focused: true })
-```
+## Compare
 
-Details:
+Checked on 2026-10-14 against [ntfy documentation](https://docs.ntfy.sh/)
+and [Gotify documentation](https://gotify.net/docs/).
 
-- **Priorities.** `low`, `normal`, `high` and `urgent`. The defaults per kind
-  are: `needs-approval` and `needs-sign-in` high, `task-stuck` normal,
-  `task-done` and `schedule-missed` low. The event or `rules.priorities`
-  can change them.
-- **Quiet hours.** Local time, "HH:MM", and they can cross midnight. A notice
-  below `bypass` (default `urgent`) waits. When quiet hours end, one alarm
-  shows the held notices together. The same start and end means no quiet
-  hours.
-- **Digest.** Low-priority notices wait `digestMinutes` (default 60). Then
-  they show as one notice, such as "3 updates from your agent". A digest of
-  one notice shows as that notice, with its own click target.
-- **Repeats and floods.** A second event with the same key (default
-  `<kind>:<taskId>`) within `dedupeMinutes` (default 10) is dropped. More
-  than `rateLimit.max` notices per `rateLimit.perMinutes` (default 4 per 1)
-  go to the digest, not away. The queue keeps the newest 50 notices and
-  counts the rest in the digest.
-- **Text.** The notice text is a fixed sentence for each kind plus the task
-  title. Nothing else from the event reaches the text. `cleanTitle` makes the
-  title one line of at most 80 characters. It replaces codes of 6 or more
-  digits, card numbers, email addresses and long tokens with `[hidden]`, and
-  keeps only the host of a URL.
-- **Webhook.** By default the body holds the kind, the priority, a fixed
-  sentence and the time. The task title goes in only with `includeTitle`.
-  `previewWebhook` builds the same request, so a settings page can show it
-  before the user turns the webhook on.
-- **Phone link.** A WebRTC link dies when the event page unloads, so the link
-  lives in a page that stays open, such as the sidebar. `phoneChannel` hands
-  the notice to that page, and `servePhoneLink` sends it to the phone as a
-  foxsync `note`. The phone link gets the same text as the desktop, title
-  included, because the link is encrypted to your own paired phone.
+| Property | foxnotify | ntfy | Gotify |
+|---|---|---|---|
+| Scope | Agent notice rules and browser routing | HTTP push notifications | Server messages from applications to clients |
+| Deployment | Library inside your extension | Push server and receiving clients | Server and receiving clients |
+| Configuration | Rule and channel objects | Topic URLs and publish requests | Applications and clients |
+| Message model | Five event kinds, quiet hours, digest | Topic messages via HTTP PUT or POST | Content, title, application ID, priority |
 
-Every failure mode and its test is in
-[docs/failure-modes.md](docs/failure-modes.md).
+## Coverage
 
-## API
+There are three implemented delivery surfaces: desktop, webhook, and phone bridge.
+The webhook supports two formats, JSON and ntfy; these share one channel factory.
+
+| Integration | Status | Verification level |
+|---|---|---|
+| Mozilla Firefox desktop notifications | ✓ | Browser API behavior tested locally with stand-ins |
+| JSON HTTP webhook | ✓ | Request construction and failures tested locally |
+| ntfy HTTP publishing | Implemented format | Header/body tests; live ntfy service not checked here |
+| foxsync phone link bridge | Implemented bridge | Stand-in link tests; real paired phone pending |
+| Gotify | — | No built-in adapter |
+
+The five event kinds are `needs-approval`, `needs-sign-in`, `task-done`, `task-stuck`, and `schedule-missed`.
+The four priorities are `low`, `normal`, `high`, and `urgent`.
+This rewrite does not verify Android, a live webhook service, or a paired phone.
+
+## Common use cases
+
+1. foxmate developers alert users when a Firefox agent needs approval.
+2. foxpass login-helper developers focus the task tab when sign-in needs attention.
+3. Firefox extension authors group low-priority task completions into a morning digest.
+4. ntfy home-lab users receive fixed task summaries through a self-hosted topic.
+5. foxsync application developers pass notices to an open page with a paired phone link.
+
+## Features
+
+- **Quiet hours:** local clock rules and a configurable priority bypass; see [rules](#rules-pure-also-in-node).
+- **Flood control:** deduplication, per-task mute, rate limits, and a bounded queue; see [limits](#delivery-and-behavior-limits).
+- **Digests:** queued notices flush through the same delivery surfaces; see the [notifier API](#notifier-extension-event-page).
+- **Webhook preview:** inspect the outgoing request before enabling delivery; see [channels](#channels).
+- **Text filtering:** cleaned titles and fixed event sentences; see [limits](#delivery-and-behavior-limits).
+
+## Runtime surfaces
+
+The package exports a JavaScript library with pure rules and Firefox notifier APIs.
+There is no CLI or Model Context Protocol (MCP) server.
 
 ### Rules (pure, also in Node)
 
@@ -228,65 +196,7 @@ page. Other pages send it a message.
 foxsync is an optional peer dependency. foxnotify uses only the `isOpen` and
 `send` parts of a link, so it does not import foxsync.
 
-## Try the demo
-
-```bash
-pnpm install
-pnpm e2e
-```
-
-`pnpm e2e` builds `extension/` with `--e2e`, which adds a test content script
-on `http://127.0.0.1/*` and the test messages of `e2e/background.js`, and runs
-it in a real Firefox. The release build that AMO signs has neither;
-`pnpm check:amo` checks that. It writes `artifacts/e2e-<date>.json`.
-Add `--shots <dir>` for PNGs of the demo pages. On CI, the test uses
-Firefox's own alert windows, and a check of what Firefox shows that fails
-there logs `SKIP (CI)` instead of failing the run. The other checks still
-count.
-
-[docs/amo-data.md](docs/amo-data.md) lists what the add-on sends out of the
-browser, and why its manifest declares no AMO data type.
-
-To try it yourself, run `pnpm build:ext` and load `dist-ext/manifest.json`
-from `about:debugging`. Install from AMO:
-[addons.mozilla.org/firefox/addon/foxnotify](https://addons.mozilla.org/firefox/addon/foxnotify/)
-(pending AMO review; the link works after approval). The popup is a fake agent: start a task, then emit
-any event kind with any priority. The settings page sets quiet hours, limits
-and the webhook, and shows the webhook request before you turn it on. An
-approval notice opens the approvals page.
-
-The E2E checks:
-
-- the notice text that Firefox shows (`notifications.getAll()`),
-- a click that makes the task tab active, while another tab was in front,
-- an approval click that opens the approvals page and leaves the approval
-  pending,
-- quiet hours that hold a low and a high notice and let an urgent one
-  through,
-- a click on a notice from before an event page unload,
-- the held notices as one digest when the alarm fires,
-- the webhook body from a local stand-in server: no title, and the same
-  keys and content type as the preview,
-- per-task mute.
-
-## Firefox APIs used
-
-| API | Why |
-|---|---|
-| [`notifications.create`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/create) / [`clear`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/clear) | Desktop notices. Firefox supports only the `basic` type with `title`, `message` and `iconUrl`. |
-| [`notifications.onClicked`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/onClicked) / [`onClosed`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/onClosed) | Route a click; forget the click target on close |
-| [`notifications.getAll`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/notifications/getAll) | The E2E reads the notices that Firefox shows |
-| [`alarms`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/alarms) | One alarm for the digest and the end of quiet hours. It wakes the event page. |
-| [`storage.local`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/storage/local) | State, rules and click targets, so they survive an unload |
-| [`tabs.get` / `update` / `query` / `create`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/tabs) | Make the target tab active, or open the target page |
-| [`windows.update`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/windows/update) | Focus the window of the target tab. Missing on Android. |
-| [`runtime.sendMessage` / `onMessage`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/sendMessage) | Hand phone notices to the page with the foxsync link; the demo pages talk to the event page |
-| [`runtime.getURL`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/runtime/getURL) | The fallback page URL |
-| [MV3 background scripts (event page)](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Background_scripts) | Where the notifier runs. It unloads when idle, so the notifier saves everything first. |
-| [`fetch`](https://developer.mozilla.org/en-US/docs/Web/API/Window/fetch) with [`AbortController`](https://developer.mozilla.org/en-US/docs/Web/API/AbortController) | The webhook, with a timeout |
-| [`options_ui`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/options_ui) / [`action`](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/manifest.json/action) | Demo: the settings page and the fake agent popup |
-
-## Limits
+## Delivery and behavior limits
 
 - **No buttons on a notice.** Firefox notices have no action buttons, images
   or progress bars. A click is the only action, and it only opens a page. The
@@ -319,24 +229,80 @@ The E2E checks:
 - **No phone call or SMS.** foxnotify never calls a phone.
 - **http: only on localhost.** A webhook on your LAN needs `https:`.
 
-## Part of the fox primitives
+## Integration guides
 
-```mermaid
-flowchart LR
-    foxsync -. "optional phone link" .-> foxnotify
-    foxnotify --> foxmate
-    foxnotify -. "sign-in notices" .-> foxpass
-    click foxnotify "https://github.com/pooriaarab/foxnotify"
-    click foxsync "https://github.com/pooriaarab/foxsync"
-    click foxmate "https://github.com/pooriaarab/foxmate"
-    click foxpass "https://github.com/pooriaarab/foxpass"
+- [Firefox desktop agent alerts](#decide-your-first-notice): initialize the notifier in the background script.
+- [ntfy and JSON webhook delivery](#channels): supply a URL and choose the payload format.
+- [foxsync phone notices](#channels): keep the link in an open extension page and register `servePhoneLink` there.
+
+Use `webhookChannel({ url, format: "ntfy" })` for an ntfy topic.
+The default format is JSON; it does not use ntfy publishing headers.
+External webhooks need appropriate extension host permissions.
+The webhook omits cleaned task titles unless `includeTitle: true`; desktop and phone text includes them.
+
+## Status
+
+foxnotify is a 0.x library; rule defaults and API shapes can change before 1.0.
+Report problems through [GitHub issues](https://github.com/pooriaarab/foxnotify/issues).
+Public case studies are not yet published.
+The demo is a development extension; this README does not claim an approved add-on listing.
+
+## FAQ
+
+### What is foxnotify?
+
+foxnotify turns agent events into delivery decisions and notices.
+It includes quiet hours, digests, deduplication, and click routing for Firefox extensions.
+
+### Which integrations are verified?
+
+foxnotify has local tests for rule decisions, browser API calls, webhook requests, and a stand-in phone link.
+This README rewrite does not test a live ntfy server, Android, or a real paired phone.
+
+### Does foxnotify provide a managed push service?
+
+foxnotify runs inside your extension.
+You provide any webhook server or phone link it uses.
+
+### How is foxnotify different from ntfy?
+
+foxnotify decides when an agent notice should appear and can publish to an ntfy topic.
+[ntfy](https://docs.ntfy.sh/) delivers push notifications through HTTP publishing and receiving clients.
+
+### How is foxnotify different from Gotify?
+
+foxnotify runs agent notice rules inside Firefox.
+[Gotify](https://gotify.net/docs/) provides a server with sending applications and receiving clients; foxnotify has no built-in Gotify adapter.
+
+### Does clicking a foxnotify notice approve an action?
+
+foxnotify routes the click to a tab or page.
+The application handles the approval on that page.
+
+### Does foxnotify retry failed delivery?
+
+foxnotify reports channel failures in `errors`.
+It does not retry failed single notices or digests.
+
+### Does foxnotify hide all secrets in titles?
+
+foxnotify filters common secret patterns and shortens titles.
+The filter cannot guarantee secrecy; applications should supply titles without secrets.
+
+## Try the demo
+
+```bash
+pnpm install
+pnpm ci:local
+pnpm build:ext
 ```
 
-foxnotify can use [foxsync](https://github.com/pooriaarab/foxsync) for the
-phone. [foxmate](https://github.com/pooriaarab/foxmate) and
-[foxpass](https://github.com/pooriaarab/foxpass) are the planned users. See
-all repos at [github.com/pooriaarab](https://github.com/pooriaarab).
+Load `dist-ext/manifest.json` from Firefox `about:debugging`.
+The popup emits sample agent events; settings configures quiet hours and previews the webhook request.
+Run `pnpm e2e` separately for Firefox checks and an artifact in `artifacts/`.
+The end-to-end suite calls the notice click handler; it does not click an operating-system notification.
+Its phone tests use a stand-in link.
 
 ## License
 
-MIT
+[MIT](https://opensource.org/license/mit)
